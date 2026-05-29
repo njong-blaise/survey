@@ -1,8 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.https//jotgnadycbnaotjookvx.supabase.co;
+const supabaseServiceKey = process.env.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvdGduYWR5Y2JuYW90am9va3Z4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTU3MTY0OSwiZXhwIjoyMDk1MTQ3NjQ5fQ.g0RQIqzLjcAkhknOUPwnZezXAw1XPwB31ans3MpSnJA;
 
 if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase configuration in auth middleware');
