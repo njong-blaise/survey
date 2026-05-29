@@ -1,0 +1,320 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '../services/supabase';
+
+const PublicSurveyPage = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [survey, setSurvey] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    fetchSurvey();
+  }, [id]);
+
+  const fetchSurvey = async () => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/surveys/public/${id}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError('Survey not found');
+        } else {
+          setError('Failed to load survey');
+        }
+        return;
+      }
+      const data = await response.json();
+      setSurvey(data);
+      
+      // Initialize answers object
+      const initialAnswers = {};
+      data.questions.forEach(question => {
+        if (question.question_type === 'checkbox') {
+          initialAnswers[question.id] = [];
+        } else {
+          initialAnswers[question.id] = '';
+        }
+      });
+      setAnswers(initialAnswers);
+    } catch (error) {
+      console.error('Error fetching survey:', error);
+      setError('Failed to load survey');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAnswerChange = (questionId, value) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
+  };
+
+  const handleCheckboxChange = (questionId, option, checked) => {
+    setAnswers(prev => {
+      const currentAnswers = prev[questionId] || [];
+      if (checked) {
+        return {
+          ...prev,
+          [questionId]: [...currentAnswers, option]
+        };
+      } else {
+        return {
+          ...prev,
+          [questionId]: currentAnswers.filter(opt => opt !== option)
+        };
+      }
+    });
+  };
+
+  const validateAnswers = () => {
+    if (!survey) return false;
+
+    for (const question of survey.questions) {
+      if (question.is_required) {
+        const answer = answers[question.id];
+        if (!answer || (Array.isArray(answer) && answer.length === 0) || 
+            (typeof answer === 'string' && answer.trim() === '')) {
+          setError(`Question "${question.question_text}" is required`);
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!validateAnswers()) {
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const formattedAnswers = survey.questions.map(question => {
+        const answer = answers[question.id];
+        
+        if (question.question_type === 'multiple_choice') {
+          return {
+            question_id: question.id,
+            answer_options: [answer]
+          };
+        } else if (question.question_type === 'checkbox') {
+          return {
+            question_id: question.id,
+            answer_options: answer
+          };
+        } else {
+          return {
+            question_id: question.id,
+            answer_text: answer
+          };
+        }
+      });
+
+      const response = await fetch(`http://localhost:5000/api/responses/survey/${id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          answers: formattedAnswers
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit response');
+      }
+
+      setSubmitted(true);
+    } catch (error) {
+      console.error('Error submitting response:', error);
+      setError(error.message || 'Failed to submit response');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const renderQuestion = (question) => {
+    const answer = answers[question.id];
+
+    switch (question.question_type) {
+      case 'short_answer':
+        return (
+          <input
+            type="text"
+            value={answer || ''}
+            onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Your answer"
+            required={question.is_required}
+          />
+        );
+
+      case 'paragraph':
+        return (
+          <textarea
+            value={answer || ''}
+            onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            rows={4}
+            placeholder="Your answer"
+            required={question.is_required}
+          />
+        );
+
+      case 'multiple_choice':
+        return (
+          <div className="space-y-2">
+            {question.options.map((option, index) => (
+              <label key={index} className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`question-${question.id}`}
+                  value={option}
+                  checked={answer === option}
+                  onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                  className="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                  required={question.is_required}
+                />
+                <span className="text-gray-700">{option}</span>
+              </label>
+            ))}
+          </div>
+        );
+
+      case 'checkbox':
+        return (
+          <div className="space-y-2">
+            {question.options.map((option, index) => (
+              <label key={index} className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  value={option}
+                  checked={(answer || []).includes(option)}
+                  onChange={(e) => handleCheckboxChange(question.id, option, e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <span className="text-gray-700">{option}</span>
+              </label>
+            ))}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (error && !survey) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+            <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Survey Not Found</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto px-4">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+            <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
+          <p className="text-gray-600 mb-6">
+            Your response has been submitted successfully. We appreciate your feedback!
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{survey?.title}</h1>
+          {survey?.description && (
+            <p className="text-gray-600">{survey.description}</p>
+          )}
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6">
+          <div className="space-y-6">
+            {survey?.questions.map((question, index) => (
+              <div key={question.id}>
+                <div className="mb-2">
+                  <label className="block text-sm font-medium text-gray-900">
+                    {index + 1}. {question.question_text}
+                    {question.is_required && <span className="text-red-500 ml-1">*</span>}
+                  </label>
+                </div>
+                {renderQuestion(question)}
+              </div>
+            ))}
+          </div>
+
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          <div className="mt-6">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            >
+              {submitting ? 'Submitting...' : 'Submit Response'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default PublicSurveyPage;
