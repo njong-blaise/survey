@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+import { apiUrl } from '../config/api';
 
 const PublicSurveyPage = () => {
   const { id } = useParams();
@@ -20,7 +19,7 @@ const PublicSurveyPage = () => {
 
   const fetchSurvey = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/surveys/public/${id}`);
+      const response = await fetch(apiUrl(`/surveys/public/${id}`));
       if (!response.ok) {
         if (response.status === 404) {
           setError('Survey not found');
@@ -122,7 +121,7 @@ const PublicSurveyPage = () => {
         }
       });
 
-      const response = await fetch(`${API_BASE_URL}/responses/survey/${id}`, {
+      const response = await fetch(apiUrl(`/responses/survey/${id}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

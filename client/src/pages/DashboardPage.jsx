@@ -52,7 +52,11 @@ const DashboardPage = () => {
       if (message.includes('No valid session') || message.includes('Session expired')) {
         setError('Your session expired. Please log in again.');
       } else if (message.includes('Failed to fetch')) {
-        setError('Cannot connect to API server. Make sure backend is running on http://localhost:5000.');
+        setError(
+          import.meta.env.DEV
+            ? 'Cannot connect to API server. Start the backend with: cd server && npm run dev'
+            : 'Cannot connect to API server. Check VITE_API_URL in Vercel and that Render is running.'
+        );
       } else {
         setError('Failed to load surveys');
       }

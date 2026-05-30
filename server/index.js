@@ -9,20 +9,39 @@ const adminRoutes = require('./routes/adminRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-const allowedOrigins = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [];
+const LOCAL_DEV_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+];
+
+const configuredOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((url) => url.trim()).filter(Boolean)
+  : [];
+
+const allowedOrigins = [...new Set([...LOCAL_DEV_ORIGINS, ...configuredOrigins])];
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  // Vercel production + preview deployments
+  if (/^https:\/\/[\w.-]+\.vercel\.app$/.test(origin)) return true;
+  return false;
+};
+
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (e.g., curl, server-to-server)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('CORS policy: This origin is not allowed'));
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error(`CORS policy: origin not allowed — ${origin}`));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 app.use(cors(corsOptions));
@@ -33,9 +52,8 @@ app.get('/', (req, res) => {
   res.json({ message: 'Survey Application API Server' });
 });
 
-// API info route
 app.get('/api', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Survey Application API',
     availableRoutes: [
       'GET /api/surveys - Get all surveys (authenticated)',
@@ -55,8 +73,8 @@ app.get('/api', (req, res) => {
       'GET /api/admin/questions - Get all questions (super admin)',
       'GET /api/admin/activity - Get admin activity log (admin)',
       'GET /api/admin/stats - Get comprehensive system statistics (admin)',
-      'GET /api/admin/profile - Get admin profile (admin)'
-    ]
+      'GET /api/admin/profile - Get admin profile (admin)',
+    ],
   });
 });
 
@@ -64,7 +82,6 @@ app.use('/api/surveys', surveyRoutes);
 app.use('/api/responses', responseRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
