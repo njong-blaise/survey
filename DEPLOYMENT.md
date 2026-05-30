@@ -35,7 +35,9 @@ Vite bakes `import.meta.env.VITE_*` into the build at **build time**. If `VITE_A
 
 2. **Start command**: `npm start` (from `server` folder)
 
-3. **Root directory**: `server`
+3. **Build command**: `npm run build` (no-op build step added for Render compatibility)
+
+4. **Root directory**: `server`
 
 CORS allows:
 - Origins listed in `FRONTEND_URL` (comma-separated)
